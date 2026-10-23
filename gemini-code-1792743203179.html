@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoPass: Wildlife Escape</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0b132b;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.7);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid #1e293b;
+        }
+        canvas {
+            display: block;
+            background: #87ceeb;
+        }
+        #ui-hud {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            background: rgba(15, 23, 42, 0.85);
+            padding: 10px 16px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            font-size: 14px;
+            pointer-events: none;
+        }
+        h1 { margin: 0 0 5px 0; font-size: 16px; color: #4ade80; }
+        p { margin: 3px 0; font-size: 12px; color: #cbd5e1; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="ui-hud">
+        <h1>EcoPass: Wildlife Escape</h1>
+        <p>Use <b>WASD</b> or <b>Arrow Keys</b> to move.</p>
+        <p>Avoid the highway! Use the <b>Tunnel Pass</b> below.</p>
+    </div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Game State
+    let gameState = 'PLAYING'; // PLAYING, WIN, LOSE
+    let messageTimer = 0;
+    let warningText = '';
+
+    // Player (Deer)
+    const deer = {
+        x: 400,
+        y: 520,
+        radius: 14,
+        speed: 3.2,
+        color: '#d97706'
+    };
+
+    // Highway Cars
+    let cars = [
+        { x: 100, y: 220, width: 70, height: 35, speed: 4.5, color: '#ef4444' },
+        let x2 = 500, y2 = 220, width2 = 70, height2 = 35, speed2 = -5.0, color2 = '#38bdf8'
+    ];
+    
+    // Extra cars array management
+    let traffic = [
+        { x: 100, y: 200, w: 60, h: 28, speed: 4 },
+        { x: 450, y: 200, w: 60, h: 28, speed: -5.5 },
+        { x: 250, y: 260, w: 60, h: 28, speed: -4.5 },
+        { x: 600, y: 260, w: 60, h: 28, speed: 5 }
+    ];
+
+    // Monitoring Posts & Beams
+    const posts = [
+        { x: 150, y: 165 },
+        { x: 650, y: 165 }
+    ];
+
+    // Input Keys
+    const keys = {};
+    window.addEventListener('keydown', e => keys[e.key] = true);
+    window.addEventListener('keyup', e => keys[e.key] = false);
+
+    function update() {
+        if (gameState !== 'PLAYING') return;
+
+        // Movement
+        if (keys['ArrowUp'] || keys['w'] || keys['W']) deer.y -= deer.speed;
+        if (keys['ArrowDown'] || keys['s'] || keys['S']) deer.y += deer.speed;
+        if (keys['ArrowLeft'] || keys['a'] || keys['A']) deer.x -= deer.speed;
+        if (keys['ArrowRight'] || keys['d'] || keys['D']) deer.x += deer.speed;
+
+        // Boundaries
+        if (deer.x < 20) deer.x = 20;
+        if (deer.x > canvas.width - 20) deer.x = canvas.width - 20;
+        if (deer.y < 20) deer.y = 20;
+        if (deer.y > canvas.height - 20) deer.y = canvas.height - 20;
+
+        // Move Traffic
+        traffic.forEach(car => {
+            car.x += car.speed;
+            if (car.x > canvas.width + 80) car.x = -80;
+            if (car.x < -80) car.x = canvas.width + 80;
+
+            // Collision with Highway Traffic
+            if (deer.x > car.x - car.w/2 && deer.x < car.x + car.w/2 &&
+                deer.y > car.y - car.h/2 && deer.y < car.y + car.h/2) {
+                gameState = 'LOSE';
+            }
+        });
+
+        // Monitoring System Logic (Deterrent zone near highway boundary y: 180 to 240)
+        let nearHighway = deer.y > 170 && deer.y < 280 && deer.x > 100 && deer.x < 700;
+        if (nearHighway) {
+            warningText = "🚨 SENSOR ALERT! Ultrasonic Repeller Active!";
+            messageTimer = 40;
+            // Push deer down away from danger automatically
+            deer.y += 2.5;
+        } else if (messageTimer > 0) {
+            messageTimer--;
+            if (messageTimer === 0) warningText = '';
+        }
+
+        // Tunnel Passage Zone (y: 360 to 420, x: 330 to 470)
+        let inTunnel = deer.y > 350 && deer.y > 360 && deer.y < 430 && deer.x > 330 && deer.x < 470;
+        
+        // Win Condition (Reached top grass zone safely through the tunnel)
+        if (deer.y < 100 && (deer.x >= 330 && deer.x <= 470)) {
+            gameState = 'WIN';
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 1. Background Sky & Top Forest
+        ctx.fillStyle = '#87ceeb';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#166534';
+        ctx.fillRect(0, 0, canvas.width, 140);
+
+        // Trees along top
+        for (let i = 40; i < canvas.width; i += 70) {
+            ctx.fillStyle = '#5c4033';
+            ctx.fillRect(i - 6, 120, 12, 30);
+            ctx.fillStyle = '#14532d';
+            ctx.beginPath();
+            ctx.arc(i, 110, 22, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 2. Highway Road Deck
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(0, 180, canvas.width, 100);
+
+        // Yellow Dashes
+        ctx.strokeStyle = '#facc15';
+        ctx.lineWidth = 4;
+        ctx.setLineDash([20, 15]);
+        ctx.beginPath();
+        ctx.moveTo(0, 230);
+        ctx.lineTo(canvas.width, 230);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw Traffic Cars
+        traffic.forEach(car => {
+            ctx.fillStyle = car.speed > 0 ? '#ef4444' : '#38bdf8';
+            ctx.fillRect(car.x - car.w/2, car.y - car.h/2, car.w, car.h);
+        });
+
+        // 3. Monitoring System Posts & Strobe Beams
+        posts.forEach(p => {
+            ctx.fillStyle = '#64748b';
+            ctx.fillRect(p.x - 4, p.y - 15, 8, 30);
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(p.x, p.y - 18, 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Cone beam light
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.15);';
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p.x - 40, p.y + 60);
+            ctx.lineTo(p.x + 40, p.y + 60);
+            ctx.fill();
+        });
+
+        // 4. Grassy Embankment Slope
+        ctx.fillStyle = '#15803d';
+        ctx.fillRect(0, 280, canvas.width, 320);
+
+        // 5. Tunnel Underpass Structure (Center)
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(320, 350, 160, 90);
+
+        ctx.fillStyle = '#334155';
+        ctx.beginPath();
+        ctx.arc(400, 395, 45, Math.PI, 0, false);
+        ctx.fill();
+
+        // Safe Path through tunnel
+        ctx.fillStyle = '#b45309';
+        ctx.fillRect(360, 390, 80, 120);
+
+        // 6. Draw Player (Deer)
+        ctx.fillStyle = deer.color;
+        ctx.beginPath();
+        ctx.arc(deer.x, deer.y, deer.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Deer antlers / head detail
+        ctx.fillStyle = '#b45309';
+        ctx.fillRect(deer.x - 4, deer.y - 18, 8, 8);
+
+        // Warning Text Overlay
+        if (warningText !== '') {
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+            ctx.fillRect(canvas.width/2 - 180, 100, 360, 35);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 13px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(warningText, canvas.width/2, 122);
+        }
+
+        // Win / Lose Screens
+        if (gameState === 'LOSE') {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#ef4444';
+            ctx.font = 'bold 32px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText("CRITICAL HIT! Hit by vehicle.", canvas.width/2, canvas.height/2 - 20);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '16px sans-serif';
+            ctx.fillText("Press R to Restart and use the EcoPass Tunnel.", canvas.width/2, canvas.height/2 + 20);
+        } else if (gameState === 'WIN') {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#4ade80';
+            ctx.font = 'bold 32px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText("SUCCESS! EcoPass Protected the Wildlife!", canvas.width/2, canvas.height/2 - 20);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '16px sans-serif';
+            ctx.fillText("Press R to Play Again", canvas.width/2, canvas.height/2 + 20);
+        }
+    }
+
+    function loop() {
+        update();
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    // Restart trigger
+    window.addEventListener('keydown', e => {
+        if ((e.key === 'r' || e.key === 'R') && gameState !== 'PLAYING') {
+            deer.x = 400;
+            deer.y = 520;
+            gameState = 'PLAYING';
+        }
+    });
+
+    loop();
+</script>
+
+</body>
+</html>
